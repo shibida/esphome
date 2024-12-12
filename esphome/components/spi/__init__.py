@@ -128,7 +128,7 @@ def get_hw_interface_list():
             VARIANT_ESP32H2,
         ]:
             return [["spi", "spi2"]]
-        return [["spi"], ["spi2"], ["spi3"]]
+        return [["sp0"], ["spi2"], ["spi3"]]
     if target_platform == PLATFORM_RP2040:
         return [["spi"], ["spi1"]]
     return []
