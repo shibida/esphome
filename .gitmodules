@@ -1,3 +1,6 @@
 [submodule "secrets"]
 	path = secrets
 	url = https://github.com/shibida/esphome-private.git
+[submodule "shibida_config/components/hoymiles_inverter/lib/OpenDTU"]
+	path = shibida_config/components/hoymiles_inverter/lib/OpenDTU
+	url = https://github.com/shibida/OpenDTU.git

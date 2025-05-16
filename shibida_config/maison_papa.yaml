@@ -1,0 +1,277 @@
+external_components:
+  - source: components
+
+esphome:
+  name: myopendtu
+  friendly_name: myopendtu
+  name_add_mac_suffix: False
+
+esp32:
+  board: lolin_s2_mini
+  variant: ESP32S2
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  level: DEBUG
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret maison_papa_api_key
+
+ota:
+  - platform: esphome
+    password: !secret maison_papa_ota_password
+
+wifi:
+  use_address: !secret maison_papa_use_address
+  ssid: !secret wifi_ssid_papa
+  password: !secret wifi_password_papa
+
+captive_portal:
+psram:
+  mode: quad
+  speed: 80MHz
+
+web_server:
+  port: 80
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: Europe/Paris
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 2.pool.ntp.org
+
+# Restart ESP32
+switch:
+  - platform: restart
+    name: "MyOpenDTU Restart"
+
+hoymiles_inverter:
+  pins: # Set your own pins
+    sdio: GPIO5
+    clk: GPIO4
+    cs: GPIO2
+    fcs: GPIO3
+  inverters:
+    - serial: !secret maison_papa_inverter_serial # Serial No of your inverter
+      limit_percent: # Number Entity 0 - 100%
+        name: Percent Limit
+      limit_absolute: # Number Entity 0 - 2500 W
+        name: Absolute Limit
+      reachable: # Binary Sensor
+        name: Reachable
+      dc_channels:
+        - power: # Power in W
+            name: Channel 0 Power
+          current: # Current in A
+            name: Channel 0 Current
+          voltage: # Voltage in V
+            name: Channel 0 Voltage
+        - power:
+            name: Channel 1 Power
+        - power:
+            name: Channel 2 Power
+        - power:
+            name: Channel 3 Power
+      ac_channel:
+        power:
+          name: AC Power
+      inverter_channel:
+        power:
+          name: Inverter Power
+        energy: # Today's Energy in Wh
+          name: Inverter Energy
+
+color:
+  - id: my_red
+    red: 100%
+    green: 3%
+    blue: 5%
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 14
+
+spi:
+  - id: spi_bus3
+    clk_pin: GPIO39
+    mosi_pin: GPIO37
+    miso_pin: GPIO40
+    interface: spi3
+
+output:
+  - platform: ledc
+    pin: GPIO35
+    id: myopendtu_display
+
+sensor:
+  - platform: homeassistant
+    id: value_ac_power
+    entity_id: sensor.myopendtu_ac_power
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_test
+            text:
+              format: "%0.0f W"
+              args: ["id(value_ac_power).state"]
+        - lvgl.arc.update:
+            id: arc_solar
+            value: !lambda return id(value_ac_power).state;
+    on_value_range:
+      - above: 50.0
+        then:
+          - light.turn_on: back_light
+      - below: 1.0
+        then:
+          - light.turn_off: back_light
+  - platform: homeassistant
+    id: value_edf
+    entity_id: sensor.edf_power_edf_power_pu_reseau
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_edf
+            text:
+              format: "%0.0f W"
+              args: ["id(value_edf).state"]
+        - lvgl.arc.update:
+            id: arc_edf
+            value: !lambda return id(value_edf).state;
+        #- lambda: |-
+        #    int value = id(value_edf).state;  // Utilisation de get_value pour accéder à la valeur de l'arc
+        #    if (value < 0) {
+        #      id(arc_edf).lv_obj_set_style_arc_color(lv_color_hex(0xFFFF00), LV_PART_INDICATOR);  // Jaune pour valeurs négatives
+        #    } else {
+        #      id(arc_edf).lv_obj_set_style_arc_color(lv_color_hex(0xFF0000), LV_PART_INDICATOR);  // Rouge pour valeurs positives
+        #    }
+text_sensor:
+  - platform: homeassistant
+    id: value_tempo_now
+    entity_id: sensor.rte_tempo_couleur_actuelle
+    on_value:
+      then:
+        - lvgl.led.update:
+            id: led_tempo_now
+            color: !lambda |-
+              if (id(value_tempo_now).state == "Rouge") {
+                return lv_color_hex(0xFF0000);  // Rouge
+              } else if (id(value_tempo_now).state == "Blanc") {
+                return lv_color_hex(0xFFFFFF);  // Blanc
+              } else if (id(value_tempo_now).state == "Bleu") {
+                return lv_color_hex(0x0000FF);  // Bleu
+              } else {
+                return lv_color_hex(0x000000);  // Noir par défaut
+              };
+  - platform: homeassistant
+    id: value_tempo_tomorrow
+    entity_id: sensor.rte_tempo_prochaine_couleur
+    on_value:
+      then:
+        - lvgl.led.update:
+            id: led_tempo_tomorrow
+            color: !lambda |-
+              if (id(value_tempo_tomorrow).state == "Rouge") {
+                return lv_color_hex(0xFF0000);  // Rouge
+              } else if (id(value_tempo_tomorrow).state == "Blanc") {
+                return lv_color_hex(0xFFFFFF);  // Blanc
+              } else if (id(value_tempo_tomorrow).state == "Bleu") {
+                return lv_color_hex(0x0000FF);  // Bleu
+              } else {
+                return lv_color_hex(0x000000);  // Noir par défaut
+              };
+
+light:
+  - platform: monochromatic
+    output: myopendtu_display
+    name: "Display Backlight"
+    id: back_light
+    restore_mode: ALWAYS_ON
+
+display:
+  - platform: ili9xxx
+    id: mon_ecran
+    spi_id: spi_bus3
+    data_rate: 40MHz
+    spi_mode: mode0
+    rotation: 0
+    dimensions:
+      height: 320
+      width: 240
+    update_interval: never
+    auto_clear_enabled: False
+    color_order: bgr
+    model: ILI9341
+    invert_colors: false
+    dc_pin: GPIO21
+    cs_pin: GPIO33
+    reset_pin: GPIO34
+
+lvgl:
+  displays:
+    - mon_ecran
+  # Définir des styles personnalisés pour les arcs
+  style_definitions:
+    - id: style_background
+      bg_color: "black" # Fond noir
+    - id: style_arc_solar
+      arc_color: "green" # Couleur de la ligne de l'arc solaire
+
+    - id: style_arc_edf
+      arc_color: "red" # Couleur de la ligne de l'arc EDF
+
+    - id: style_text
+      text_color: 0xFFFF00 # Jaune
+  pages:
+    - id: main_page
+      styles:
+        - style_background
+      widgets:
+        - label:
+            align: CENTER
+            id: lbl_test
+            styles: style_text
+            text: "Hello World!"
+            y: -70
+        - arc:
+            align: CENTER
+            id: arc_solar
+            min_value: 0
+            max_value: 2000
+            adjustable: false
+            y: -70
+            indicator:
+              arc_color: "green"
+
+        - arc:
+            align: CENTER
+            id: arc_edf
+            min_value: -2000
+            max_value: 9000
+            adjustable: false
+            y: 70
+            indicator:
+              arc_color: "red"
+        - label:
+            align: CENTER
+            id: lbl_edf
+            styles: style_text
+            text: "Hello World!"
+            y: 70
+        - led:
+            id: led_tempo_now
+            x: 10
+            y: 10
+            color: 0x000000
+        - led:
+            id: led_tempo_tomorrow
+            x: 200
+            y: 10
+            color: 0x000000

@@ -1,0 +1,191 @@
+substitutions:
+  friendly_name: EDF Power
+
+secrets: !include ../secrets/secrets_papa.yaml
+
+esphome:
+  name: edf-power
+  friendly_name: ${friendly_name}
+  platformio_options:
+    upload_speed: 115200
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret edf_power_papa_api_key
+
+ota:
+  - platform: esphome
+    password: !secret edf_power_papa_ota_password
+
+wifi:
+  use_address: !secret edf_power_use_address
+  ssid: !secret wifi_ssid_papa
+  password: !secret wifi_password_papa
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: !secret edf_power_ap_ssid
+    password: !secret edf_power_ap_password
+
+captive_portal:
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: Europe/Paris
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 2.pool.ntp.org
+
+web_server:
+  port: 80
+
+binary_sensor:
+  #Etat de la connection
+  - platform: status
+    name: "${friendly_name}_Status"
+
+# Protocole du JSK-MK 163T
+uart:
+  id: mod_bus
+  tx_pin: 17
+  rx_pin: 5
+  baud_rate: 9600
+modbus:
+  id: modbus1
+  uart_id: mod_bus
+modbus_controller:
+  - id: jsymk
+    address: 0x1
+    modbus_id: modbus1
+    update_interval: 0.2s
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: jsymk
+    id: Tension
+    address: 0x0048
+    unit_of_measurement: "V"
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    filters:
+      - multiply: 0.01
+    register_count: 1
+    response_size: 2
+
+  - platform: modbus_controller
+    modbus_controller_id: jsymk
+    id: Courant
+    address: 0x0049
+    unit_of_measurement: "A"
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+    register_count: 1
+    response_size: 2
+
+  - platform: modbus_controller
+    modbus_controller_id: jsymk
+    id: pureseau
+    address: 0x004A
+    unit_of_measurement: "W"
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    register_count: 1
+    response_size: 2
+    on_value:
+      then:
+        - lambda: |-
+            if ( id(senspince).state == 1 ) {
+              id(pureseau1).publish_state( id(pureseau).state *-1);
+            } else {
+              id(pureseau1).publish_state( id(pureseau).state );
+            }
+
+  - platform: modbus_controller
+    modbus_controller_id: jsymk
+    id: PuissanceConsommee
+    name: PuissanceConsommee
+    address: 0x004B
+    unit_of_measurement: "kWh"
+    register_type: holding
+    value_type: U_DWORD
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.0003125
+    register_count: 2
+    response_size: 4
+    state_class: "total_increasing"
+    device_class: energy
+
+  - platform: modbus_controller
+    modbus_controller_id: jsymk
+    id: FacteurDePuissance
+    address: 0x004D
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.001
+    register_count: 1
+    response_size: 2
+
+  - platform: modbus_controller
+    modbus_controller_id: jsymk
+    id: PuissanceInjectee
+    name: PuissanceInjectee
+    address: 0x004E
+    unit_of_measurement: "kWh"
+    register_type: holding
+    value_type: U_DWORD
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.0003125
+    register_count: 2
+    response_size: 4
+    state_class: "total_increasing"
+    device_class: energy
+
+  - platform: modbus_controller
+    modbus_controller_id: jsymk
+    id: senspince
+    address: 0x0050
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    register_count: 1
+    response_size: 2
+
+  - platform: modbus_controller
+    modbus_controller_id: jsymk
+    id: Frequence
+    address: 0x0051
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+    register_count: 1
+    response_size: 2
+
+  ############### TEMPLATE  ######################"
+  # Affichage dans HA et sur l'afficheur
+  - platform: template
+    name: "${friendly_name} Pu Reseau"
+    id: pureseau1
+    unit_of_measurement: "W"
+    state_class: "measurement"
