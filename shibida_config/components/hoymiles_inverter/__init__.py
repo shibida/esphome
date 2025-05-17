@@ -1,3 +1,5 @@
+import os
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import binary_sensor, number, sensor
@@ -128,6 +130,11 @@ async def channel_to_code(config):
     return var
 
 
+# Fonction pour faire un chemin absolu depuis ce fichier Python
+def _rel(path):
+    return "file://" + os.path.abspath(os.path.join(os.path.dirname(__file__), path))
+
+
 async def to_code(config):
     cg.add_build_flag("-std=c++17")
     cg.add_build_flag("-std=gnu++17")
@@ -137,38 +144,38 @@ async def to_code(config):
     cg.add_library(
         "Frozen",
         None,
-        "file:///config/esphome/components/hoymiles_inverter/lib/OpenDTU/lib/Frozen",
+        _rel("lib/OpenDTU/lib/Frozen"),
     )
     cg.add_library(
         "Every",
         None,
-        "file:///config/esphome/components/hoymiles_inverter/lib/OpenDTU/lib/Every",
+        _rel("lib/OpenDTU/lib/Every"),
     )
     cg.add_library(
         "ThreadSafeQueue",
         None,
-        "file:///config/esphome/components/hoymiles_inverter/lib/OpenDTU/lib/ThreadSafeQueue",
+        _rel("lib/OpenDTU/lib/ThreadSafeQueue"),
     )
     cg.add_library(
         "TimeoutHelper",
         None,
-        "file:///config/esphome/components/hoymiles_inverter/lib/OpenDTU/lib/TimeoutHelper",
+        _rel("lib/OpenDTU/lib/TimeoutHelper"),
     )
     cg.add_library(
         "SpiManager",
         None,
-        "file:///config/esphome/components/hoymiles_inverter/lib/OpenDTU/lib/SpiManager",
+        _rel("lib/OpenDTU/lib/SpiManager"),
     )
     cg.add_library(
         "CMT2300a",
         None,
-        "file:///config/esphome/components/hoymiles_inverter/lib/OpenDTU/lib/CMT2300a",
+        _rel("lib/OpenDTU/lib/CMT2300a"),
     )
     cg.add_library("SPI", None)
     cg.add_library(
         "Hoymiles",
         None,
-        "file:///config/esphome/components/hoymiles_inverter/lib/OpenDTU/lib/Hoymiles",
+        _rel("lib/OpenDTU/lib/Hoymiles"),
     )
 
     var = cg.new_Pvariable(config[CONF_ID])

@@ -1,5 +1,3 @@
-secrets: !include ../secrets/secrets.yaml
-
 substitutions:
   friendly_name: Routeur Solaire
 esphome:

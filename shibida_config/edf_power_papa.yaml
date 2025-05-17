@@ -1,8 +1,6 @@
 substitutions:
   friendly_name: EDF Power
 
-secrets: !include ../secrets/secrets_papa.yaml
-
 esphome:
   name: edf-power
   friendly_name: ${friendly_name}

@@ -129,7 +129,6 @@ void HoymilesPlatform::set_pins(esphome::InternalGPIOPin *sdio, esphome::Interna
   SpiManagerInst.register_bus(SPI2_HOST);
   ESP_LOGI(TAG, "set_pins(): Setting up Hoymiles instance");
   this->hoymiles_ = &Hoymiles;
-  Hoymiles.setMessageOutput(new EsphLogPrint());
   this->hoymiles_->init();
   this->hoymiles_->initCMT(sdio->get_pin(), clk->get_pin(), cs->get_pin(), fcs->get_pin(), -1, -1);
 }
