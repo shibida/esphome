@@ -32,13 +32,15 @@ class HoymilesNumber : public esphome::number::Number {
 
 class HoymilesChannel : public esphome::Component {
  private:
-  esphome::sensor::Sensor *power_ = nullptr, *energy_ = nullptr, *voltage_ = nullptr, *current_ = nullptr;
+  esphome::sensor::Sensor *power_ = nullptr, *energy_ = nullptr, *voltage_ = nullptr, *current_ = nullptr,
+                          *temperature_ = nullptr;
 
  public:
   void set_power_sensor(esphome::sensor::Sensor *sensor) { this->power_ = sensor; }
   void set_energy_sensor(esphome::sensor::Sensor *sensor) { this->energy_ = sensor; }
   void set_voltage_sensor(esphome::sensor::Sensor *sensor) { this->voltage_ = sensor; }
   void set_current_sensor(esphome::sensor::Sensor *sensor) { this->current_ = sensor; }
+  void set_temperature_sensor(esphome::sensor::Sensor *sensor) { this->temperature_ = sensor; }
 
   void setup() override;
   void updateSensors(bool connected, StatisticsParser *stat, ChannelType_t typ, ChannelNum_t num);

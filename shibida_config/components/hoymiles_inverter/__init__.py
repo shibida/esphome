@@ -38,6 +38,7 @@ CONF_POWER = "power"
 CONF_ENERGY = "energy"
 CONF_VOLTAGE = "voltage"
 CONF_CURRENT = "current"
+CONF_TEMPERATURE = "temperature"
 
 CHANNEL_SCHEMA = cv.Schema(
     {
@@ -64,6 +65,12 @@ CHANNEL_SCHEMA = cv.Schema(
             unit_of_measurement="A",
             accuracy_decimals=1,
             device_class="current",
+            state_class="measurement",
+        ),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+            unit_of_measurement="°C",
+            accuracy_decimals=1,
+            device_class="temperature",
             state_class="measurement",
         ),
     }
@@ -125,6 +132,8 @@ async def channel_to_code(config):
         cg.add(var.set_voltage_sensor(await sensor.new_sensor(conf)))
     if conf := config.get(CONF_CURRENT):
         cg.add(var.set_current_sensor(await sensor.new_sensor(conf)))
+    if conf := config.get(CONF_TEMPERATURE):
+        cg.add(var.set_temperature_sensor(await sensor.new_sensor(conf)))
 
     await cg.register_component(var, config)
     return var

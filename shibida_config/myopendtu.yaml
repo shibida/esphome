@@ -87,6 +87,8 @@ hoymiles_inverter:
           name: Inverter Power
         energy: # Today's Energy in Wh
           name: Inverter Energy
+        temperature:
+          name: Inverter Temperature
 
 color:
   - id: my_red

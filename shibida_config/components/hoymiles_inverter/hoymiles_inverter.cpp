@@ -106,6 +106,10 @@ void HoymilesInverter::updateConfiguration(bool connected, SystemConfigParaParse
 void HoymilesChannel::setup() {}
 
 void HoymilesChannel::updateSensors(bool connected, StatisticsParser *stat, ChannelType_t typ, ChannelNum_t num) {
+  if (this->temperature_ != nullptr) {
+    auto field = FieldId_t::FLD_T;
+    this->temperature_->publish_state(connected ? stat->getChannelFieldValue(typ, num, field) : 0.0);
+  }
   if (this->power_ != nullptr) {
     auto field = typ == ChannelType_t::TYPE_AC ? FieldId_t::FLD_PAC : FieldId_t::FLD_PDC;
     this->power_->publish_state(connected ? stat->getChannelFieldValue(typ, num, field) : 0.0);
