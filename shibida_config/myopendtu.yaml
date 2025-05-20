@@ -136,7 +136,7 @@ sensor:
           - light.turn_off: back_light
   - platform: homeassistant
     id: value_edf
-    entity_id: sensor.edf_power_edf_power_pu_reseau
+    entity_id: sensor.routeur_solaire_pu_reseau
     on_value:
       then:
         - lvgl.label.update:
@@ -203,14 +203,17 @@ display:
     spi_id: spi_bus3
     data_rate: 40MHz
     spi_mode: mode0
-    rotation: 0
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
     dimensions:
       height: 320
-      width: 240
+      width: 480
     update_interval: never
     auto_clear_enabled: False
     color_order: bgr
-    model: ILI9341
+    model: ILI9488_A
     invert_colors: false
     dc_pin: GPIO21
     cs_pin: GPIO33
@@ -269,7 +272,7 @@ lvgl:
             y: 70
         - label:
             id: lbl_tempo_now
-            text_color: black
+            styles: style_text
             text: "Tempo actuel"
             x: 10
             y: 40
@@ -280,7 +283,7 @@ lvgl:
             color: 0x000000
         - label:
             id: lbl_tempo_tomorrow
-            text_color: black
+            styles: style_text
             text: "Tempo demain"
             x: 360
             y: 40
