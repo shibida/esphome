@@ -5,6 +5,9 @@ esphome:
   name: myopendtu
   friendly_name: myopendtu
   name_add_mac_suffix: False
+  platformio_options:
+    build_flags:
+      - -O3
 
 esp32:
   board: lolin_s2_mini
@@ -15,6 +18,9 @@ esp32:
 # Enable logging
 logger:
   level: DEBUG
+  logs:
+    sensor: INFO
+    homeassistant.sensor: INFO
 
 # Enable Home Assistant API
 api:
