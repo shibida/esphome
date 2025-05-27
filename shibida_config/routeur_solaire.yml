@@ -53,17 +53,13 @@ web_server:
   port: 80
 
 globals:
-  - id: increment
-    type: float
-    restore_value: no
-    initial_value: "0"
   - id: striac
     type: float
     restore_value: yes
     initial_value: "0"
 
 binary_sensor:
-  #Etat de la connection
+  # Etat de la connection
   - platform: status
     name: "Status"
 
@@ -100,43 +96,6 @@ number:
     unit_of_measurement: "C°"
     step: 0.1
 
-  # Coeff Réactivité
-  - platform: template
-    name: "Coeff R"
-    id: coeff_r
-    optimistic: true
-    restore_value: true
-    mode: box
-    min_value: 0
-    max_value: 10
-    unit_of_measurement: ""
-    initial_value: 0.2
-    step: 0.1
-
-  - platform: template
-    name: "Hyst Min"
-    id: hyst_min
-    optimistic: true
-    restore_value: true
-    mode: box
-    min_value: -100
-    max_value: 0
-    initial_value: 0
-    unit_of_measurement: "W"
-    step: 1
-
-  - platform: template
-    name: "Hyst Max"
-    id: hyst_max
-    optimistic: true
-    restore_value: true
-    mode: box
-    min_value: 0
-    max_value: 100
-    initial_value: 10
-    unit_of_measurement: "W"
-    step: 1
-
   # Objectif routeur
   - platform: template
     name: "Objectif"
@@ -145,22 +104,43 @@ number:
     restore_value: true
     mode: box
     min_value: -100
-    max_value: 100
+    max_value: 10000
     unit_of_measurement: "W"
     step: 1
 
-  # Max aberant
+  # Kp
   - platform: template
-    name: "Valeur aberante"
-    id: aberant
+    name: "Kp"
+    id: _Kp
     optimistic: true
     restore_value: true
     mode: box
     min_value: 0
-    max_value: 10000
-    initial_value: 500
-    unit_of_measurement: "W"
-    step: 1
+    max_value: 10
+    step: 0.0001
+    initial_value: 2.2
+  # Ki
+  - platform: template
+    name: "Ki"
+    id: _Ki
+    optimistic: true
+    restore_value: true
+    mode: box
+    min_value: 0
+    max_value: 10
+    step: 0.0001
+    initial_value: 0.6
+  # Kd
+  - platform: template
+    name: "Kd"
+    id: _Kd
+    optimistic: true
+    restore_value: true
+    mode: box
+    min_value: 0
+    max_value: 10
+    step: 0.0001
+    initial_value: 0.5
 
 # Sonde Temperature Dallas
 one_wire:
@@ -298,7 +278,7 @@ sensor:
   - platform: dallas_temp
     name: "STriac Temperature"
     id: temp_triac
-    update_interval: 1s
+    update_interval: 2s
     on_value_range:
       - above: 65.0
         then:
@@ -315,13 +295,6 @@ sensor:
     unit_of_measurement: "W"
     state_class: "measurement"
     device_class: energy
-
-  - platform: template
-    name: "Increment"
-    id: afincrement
-    unit_of_measurement: ""
-    accuracy_decimals: 2
-    state_class: "measurement"
 
   - platform: template
     name: "Sortie Triac"
@@ -360,6 +333,8 @@ light:
   - platform: monochromatic
     id: gradateur
     output: dimmer
+    gamma_correct: 1.0
+    default_transition_length: 0s
     name: "STriac"
 
 # ------------------------  Scripts
@@ -376,7 +351,7 @@ script:
             - binary_sensor.template.publish:
                 id: temperatureok
                 state: ON
-        # Dévalidation du seuil de température
+      # Dévalidation du seuil de température
       - if:
           condition:
             lambda: "return id(temp_triac).state > id(tmax).state;"
@@ -390,61 +365,67 @@ script:
       - lambda: |-
           using namespace std;
 
-          static float readings[5] = {0, 0, 0, 0, 0};  // Historique des 5 dernières lectures
-          static int index = 0;  // Index pour l'historique
-          static float previous_value = 0.0;  // Dernière valeur filtrée
-          float sum = 0;
-          float filtered_value = 0;
+          // --- CONFIG PID ---
+          float Kp = id(_Kp).state;  // Coefficient proportionnel
+          float Ki = id(_Ki).state;  // Coefficient intégral
+          float Kd = id(_Kd).state;  // Coefficient dérivé
+          static const float dt = 0.2;  // Intervalle entre mesures
 
-          // Récupérer la lecture actuelle
-          float current_value = id(pureseau1).state;
+          // --- FILTRES ---
+          static float filtered_error = 0.0;
+          static float filtered_derivative = 0.0;
 
-          // Vérifier si la valeur est aberrante (différence > 500 W)
-          if (abs(current_value - previous_value) > id(aberant).state) {
-            filtered_value = previous_value;  // Retourner la dernière valeur valide
-          } else {
-            // Ajouter la nouvelle valeur dans l'historique
-            readings[index] = current_value;
-            index = (index + 1) % 5;  // Passer au prochain emplacement (circulaire)
+          // --- ÉTATS PERSISTANTS ---
+          static float previous_error = 0.0;
+          static float integral = 0.0;
+          static int count = 0;
+          static const int interval = 5;  // 5 x 0.2s = 1s
 
-            // Calculer la moyenne des 5 dernières valeurs
-            for (int i = 0; i < 5; i++) {
-              sum += readings[i];
+          // --- MESURES ---
+          float puissance_mesuree = id(pureseau1).state;
+          float puissance_consigne = id(objective).state;
+
+          // --- CALCUL ERREUR ---
+          float raw_error = puissance_consigne - puissance_mesuree;
+          filtered_error = 0.9f * filtered_error + 0.1f * raw_error;
+
+          // --- DÉRIVÉE FILTRÉE ---
+          float raw_derivative = (filtered_error - previous_error) / dt;
+          filtered_derivative = 0.8f * filtered_derivative + 0.2f * raw_derivative;
+          previous_error = filtered_error;
+
+          count++;
+
+          // --- MISE À JOUR PID ---
+          if (count >= interval) {
+            count = 0;
+
+            // --- ANTI-WINDUP AVANT PID ---
+            bool bloque_integrale = false;
+            float tentative_output = Kp * filtered_error + Ki * integral + Kd * filtered_derivative;
+            float tentative_norm = tentative_output / 3000.0;
+
+            if ((tentative_norm >= 1.0 && filtered_error > 0) || (tentative_norm <= 0.0 && filtered_error < 0)) {
+              bloque_integrale = true;
             }
-            filtered_value = sum / 5.0;
 
-            // Mettre à jour la dernière valeur filtrée
-            previous_value = filtered_value;
+            if (!bloque_integrale) {
+              integral += filtered_error * dt;
+              if (integral > 2000) integral = 2000;
+              if (integral < -2000) integral = -2000;
+            }
+
+            // --- PID FINAL ---
+            float output = Kp * filtered_error + Ki * integral + Kd * filtered_derivative;
+            float output_norm = output / 3000.0;
+            if (output_norm > 1.0) output_norm = 1.0;
+            if (output_norm < 0.0) output_norm = 0.0;
+
+            // Application au triac
+            id(striac) = output;
+
+            ESP_LOGI("PID", "Pmes: %.1f W | Pcons: %.1f W | err: %.1f | out: %.3f", puissance_mesuree, puissance_consigne, filtered_error, output);
           }
-
-          float error = filtered_value - id(objective).state;
-
-          // Appliquer l'hystérésis (plage de tolérance entre 0 et 10 W)
-          if (error < id(hyst_max).state && id(hyst_min).state > 0.0) {
-            return;  // Ne rien faire si dans la plage d'hystérésis
-          }
-
-          // Calcul brut proportionnel
-          float raw_increment = error * id(coeff_r).state / 3000.0 * -1;
-
-          // Contraindre l'incrément entre -1 et 1
-          raw_increment = constrain(raw_increment, -1.0, 1.0);
-
-          // Ajouter l'incrément à la valeur actuelle du TRIAC
-          id(striac) += raw_increment;
-
-          // Contraindre la valeur totale du TRIAC entre 0 et 1
-          id(striac) = constrain(id(striac), 0.0, 1.0);
-
-          // Appliquer la fonction sinusoïdale à la valeur totale du TRIAC
-          id(striac) = sin(id(striac) * M_PI / 2);
-
-          if(id(striac)>=id(pmax).state / 100.0){
-            id(striac) = id(pmax).state / 100.0;
-          }
-
-          // Mettre à jour le global
-          id(increment) = raw_increment;
 
       # Si Routeur Validé et mode auto et temperature ok alors on active le triac
       - if:
@@ -468,11 +449,10 @@ script:
           then:
             - lambda: |-
                 id(striac) = 0;
-                id(increment) = 0;
             - light.turn_off: gradateur
             - logger.log:
-                format: "Log Auto NOk STriac %f - Increment %f - Temperature ALERT %.2f °C"
-                args: ["id(striac)", "id(increment)", id(temp_triac).state]
+                format: "Log Auto NOk STriac %f - Temperature ALERT %.2f °C"
+                args: ["id(striac)", id(temp_triac).state]
                 level: "info"
 
       - if:
@@ -490,4 +470,3 @@ script:
       # Affichage STriac et Increment
       - lambda: |-
           id(afstriac).publish_state( id(striac) * 100);
-          id(afincrement).publish_state( id(increment) * 100);
