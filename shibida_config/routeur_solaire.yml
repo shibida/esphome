@@ -278,7 +278,7 @@ sensor:
   - platform: dallas_temp
     name: "STriac Temperature"
     id: temp_triac
-    update_interval: 2s
+    update_interval: 5s
     on_value_range:
       - above: 65.0
         then:

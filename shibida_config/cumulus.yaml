@@ -1,0 +1,159 @@
+external_components:
+  - source: components
+
+esphome:
+  name: cumulus
+  friendly_name: cumulus
+  name_add_mac_suffix: False
+  platformio_options:
+    build_flags:
+      - -O3
+
+esp32:
+  board: lolin_s2_mini
+  variant: ESP32S2
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+  level: DEBUG
+  logs:
+    homeassistant.sensor: INFO
+
+# Enable Home Assistant API
+api:
+  id: api_id
+  encryption:
+    key: !secret cumulus_api_key
+
+ota:
+  - platform: esphome
+    password: !secret cumulus_ota_password
+
+wifi:
+  use_address: !secret cumulus_use_address
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+captive_portal:
+psram:
+  mode: quad
+  speed: 80MHz
+
+web_server:
+  port: 80
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: Europe/Paris
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 2.pool.ntp.org
+
+globals:
+  - id: max_temp
+    type: float
+    restore_value: yes
+    initial_value: "50.0"
+
+  - id: last_update_temp
+    type: unsigned long
+    restore_value: no
+    initial_value: "0"
+
+# Input Number
+number:
+  - platform: template
+    name: "Temp Nuit"
+    id: tnight
+    restore_value: true
+    mode: box
+    optimistic: true
+    min_value: 0
+    max_value: 70
+    initial_value: 40
+    unit_of_measurement: "°C"
+    step: 1
+  - platform: template
+    name: "Temp Jour"
+    id: tday
+    restore_value: true
+    mode: box
+    optimistic: true
+    min_value: 0
+    max_value: 70
+    initial_value: 67
+    unit_of_measurement: "°C"
+    step: 1
+
+# Restart ESP32
+switch:
+  - platform: restart
+    name: "Restart"
+
+  - platform: template
+    name: "Mode Auto"
+    id: modeauto
+    optimistic: true
+    restore_mode: always_on
+
+  - platform: gpio
+    pin: GPIO3
+    name: "Relais SSR"
+    id: ssr_relay
+
+one_wire:
+  - platform: gpio
+    pin: GPIO5
+
+sensor:
+  - platform: dallas_temp
+    name: "Temperature"
+    id: cumulus_temp
+    update_interval: 5s
+    on_value:
+      then:
+        - lambda: |-
+            if (!isnan(x)) {
+              id(last_update_temp) = millis();
+            } else {
+              ESP_LOGW("dallas", "⚠️ Valeur invalide (nan) reçue de la sonde.");
+            }
+        - script.execute: calcul
+
+script:
+  - id: calcul
+    then:
+      - lambda: |-
+          if (!id(api_id).is_connected()) {
+            id(tday).publish_state(67.0);
+            id(tnight).publish_state(40.0);
+            ESP_LOGW("connectivity", "Déconnecté de Home Assistant, seuil remis à 40 °C et 67 °C");
+          }
+          auto now = id(sntp_time).now();
+          if (!now.is_valid()) {
+            ESP_LOGD("script", "Heure invalide");
+            return;
+          }
+          int heure = now.hour;
+          if (heure >= 6 && heure < 22) {
+            id(max_temp) = id(tday).state;  // Valeur de jour
+          } else {
+            id(max_temp) = id(tnight).state;  // Valeur de nuit
+          }
+          ESP_LOGD("script", "Heure = %d -> valeur mise à %f °C", heure, id(max_temp));
+
+      - if:
+          condition:
+            lambda: "return (id(cumulus_temp).state > id(max_temp)) || ((millis() - id(last_update_temp)) > 30000);"
+          then:
+            - switch.turn_off: ssr_relay
+          else:
+            if:
+              condition:
+                switch.is_on: modeauto
+              then:
+                - switch.turn_on: ssr_relay
