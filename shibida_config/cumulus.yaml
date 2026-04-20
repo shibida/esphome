@@ -1,6 +1,3 @@
-external_components:
-  - source: components
-
 esphome:
   name: cumulus
   friendly_name: cumulus
@@ -113,7 +110,7 @@ sensor:
   - platform: dallas_temp
     name: "Temperature"
     id: cumulus_temp
-    update_interval: 5s
+    update_interval: 1s
     on_value:
       then:
         - lambda: |-
@@ -128,10 +125,14 @@ script:
   - id: calcul
     then:
       - lambda: |-
-          if (!id(api_id).is_connected()) {
+          auto valid = [](float v) {
+            return !isnan(v) && v >= 0.0f && v <= 70.0f;
+          };
+
+          if (!id(api_id).is_connected() && (!valid(id(tday).state) || !valid(id(tnight).state))) {
             id(tday).publish_state(67.0);
             id(tnight).publish_state(40.0);
-            ESP_LOGW("connectivity", "Déconnecté de Home Assistant, seuil remis à 40 °C et 67 °C");
+            ESP_LOGW("connectivity", "Déconnecté de Home Assistant et seuils invalides, seuil remis à 40 °C et 67 °C");
           }
           auto now = id(sntp_time).now();
           if (!now.is_valid()) {
